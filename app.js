@@ -57,6 +57,7 @@ let shipMarker;
 let shipPosition = null;
 let shipSeen = null;
 let actualCoordinates = [];
+let actualSegments = [];
 let following = false;
 let socket;
 let reconnectTimer;
@@ -249,16 +250,15 @@ function normalizePosition(feature, cached = false) {
     setShipHeading(heading);
   }
 
-  if (actualCoordinates.length) {
+  if (!actualCoordinates.length) {
+    actualCoordinates = [shipPosition];
+    actualSegments = [actualCoordinates];
+  } else {
     const last = actualCoordinates[actualCoordinates.length - 1];
-    if (map.distance(last, shipPosition) > 20) {
-      actualCoordinates.push(shipPosition);
-      actualLine.setLatLngs(actualCoordinates);
-    } else {
-      actualCoordinates[actualCoordinates.length - 1] = shipPosition;
-      actualLine.setLatLngs(actualCoordinates);
-    }
+    if (map.distance(last, shipPosition) > 20) actualCoordinates.push(shipPosition);
+    else actualCoordinates[actualCoordinates.length - 1] = shipPosition;
   }
+  actualLine.setLatLngs(actualSegments);
 
   updatePositionPanel(props, cached);
   updatePortStates();
@@ -354,14 +354,23 @@ async function fetchLatestPosition() {
 
 async function fetchTrack() {
   try {
-    const params = new URLSearchParams({ from: VOYAGE_START, to: new Date().toISOString(), interval: "30m", limit: "1000" });
+    const params = new URLSearchParams({ from: VOYAGE_START, to: new Date().toISOString(), limit: "1000" });
     const response = await fetch(`${AIS_API}/vessels/${MMSI}/track?${params}`, { cache: "no-store" });
     if (!response.ok) throw new Error(`Track ${response.status}`);
     const track = await response.json();
     if (track.geometry?.type === "LineString") {
-      actualCoordinates = track.geometry.coordinates.map(([lon, lat]) => [lat, lon]);
-      if (shipPosition && map.distance(actualCoordinates.at(-1), shipPosition) > 20) actualCoordinates.push(shipPosition);
-      actualLine.setLatLngs(actualCoordinates);
+      const coordinates = track.geometry.coordinates.map(([lon, lat]) => [lat, lon]);
+      const breaks = track.properties.breaks || [];
+      actualSegments = [];
+      let start = 0;
+      for (const end of breaks) {
+        if (end > start) actualSegments.push(coordinates.slice(start, end));
+        start = end;
+      }
+      if (start < coordinates.length) actualSegments.push(coordinates.slice(start));
+      actualCoordinates = actualSegments.at(-1) || [];
+      if (shipPosition && actualCoordinates.length && map.distance(actualCoordinates.at(-1), shipPosition) > 20) actualCoordinates.push(shipPosition);
+      actualLine.setLatLngs(actualSegments);
     }
   } catch (error) {
     showToast("历史 AIS 轨迹暂未载入，实线将在收到轨迹后显示");
