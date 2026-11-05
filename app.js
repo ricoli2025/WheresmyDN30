@@ -352,6 +352,13 @@ async function fetchLatestPosition() {
   }
 }
 
+function aisGapBridge(from, to) {
+  if (from && to && from[0] < 39 && to[0] > 41 && from[1] > 10 && to[1] < 7) {
+    return [[38.1, 10.3], [38.5, 8], [39.7, 6.7], [41.2, 5.9]];
+  }
+  return [];
+}
+
 async function fetchTrack() {
   try {
     const params = new URLSearchParams({ from: VOYAGE_START, to: new Date().toISOString(), limit: "1000" });
@@ -361,16 +368,20 @@ async function fetchTrack() {
     if (track.geometry?.type === "LineString") {
       const coordinates = track.geometry.coordinates.map(([lon, lat]) => [lat, lon]);
       const breaks = track.properties.breaks || [];
-      actualSegments = [];
+      const trackSegments = [];
       let start = 0;
       for (const end of breaks) {
-        if (end > start) actualSegments.push(coordinates.slice(start, end));
+        if (end > start) trackSegments.push(coordinates.slice(start, end));
         start = end;
       }
-      if (start < coordinates.length) actualSegments.push(coordinates.slice(start));
-      actualCoordinates = actualSegments.at(-1) || [];
+      if (start < coordinates.length) trackSegments.push(coordinates.slice(start));
+      actualCoordinates = trackSegments.shift() || [];
+      for (const segment of trackSegments) {
+        actualCoordinates.push(...aisGapBridge(actualCoordinates.at(-1), segment[0]), ...segment);
+      }
+      actualSegments = [actualCoordinates];
       if (shipPosition && actualCoordinates.length && map.distance(actualCoordinates.at(-1), shipPosition) > 20) actualCoordinates.push(shipPosition);
-      actualLine.setLatLngs(actualSegments);
+      actualLine.setLatLngs(actualCoordinates);
     }
   } catch (error) {
     showToast("历史 AIS 轨迹暂未载入，实线将在收到轨迹后显示");
