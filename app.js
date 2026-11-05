@@ -136,6 +136,11 @@ function initMap() {
   });
 
   fitFullRoute();
+  const view = new URLSearchParams(window.location.search).get("view");
+  if (view) {
+    const [lat, lon, zoom] = view.split(",").map(Number);
+    if (Number.isFinite(lat) && Number.isFinite(lon) && Number.isFinite(zoom)) map.setView([lat, lon], zoom, { animate: false });
+  }
 }
 
 function buildTimeline() {
