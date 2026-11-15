@@ -1,5 +1,6 @@
 const MMSI = 477333500;
 const AIS_API = "https://ais.openwaters.io/v1";
+const AISSTREAM_KEY = "904c95126f47e3a5f40bf78113e21dd0a2496656";
 const VOYAGE_START = "2026-10-16T00:00:00Z";
 const SHANGHAI_ETA = new Date("2026-12-02T00:00:00Z");
 
@@ -518,31 +519,6 @@ async function fetchTrack() {
   }
 }
 
-function normalizeStreamEvent(event) {
-  const payload = event.data || event.vessel || event;
-  const props = payload.properties || event.properties || payload;
-  const mmsi = Number(props.mmsi || props.user_id || props.UserID || event.mmsi);
-  if (mmsi !== MMSI) return null;
-  let coordinates = payload.geometry?.coordinates;
-  if (!coordinates) {
-    const lat = Number(props.latitude ?? props.lat ?? props.Latitude);
-    const lon = Number(props.longitude ?? props.lon ?? props.Longitude);
-    if (Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) coordinates = [lon, lat];
-  }
-  if (!coordinates) return null;
-  return {
-    geometry: { coordinates },
-    properties: {
-      ...props,
-      seen: props.seen || props.rxtime || event.rxtime || event.time || new Date().toISOString(),
-      cog: props.cog ?? props.Cog,
-      sog: props.sog ?? props.Sog,
-      heading: props.heading ?? props.heading_true ?? props.TrueHeading,
-      nav_status: props.nav_status ?? props.NavigationalStatus
-    }
-  };
-}
-
 function connectStream() {
   clearTimeout(reconnectTimer);
   if (!("WebSocket" in window)) {
@@ -550,21 +526,39 @@ function connectStream() {
     return;
   }
   setConnection("connecting", "连接 AIS 中");
-  socket = new WebSocket("wss://ais.openwaters.io/v1/stream");
+  socket = new WebSocket("wss://stream.aisstream.io/v0/stream");
   socket.addEventListener("open", () => {
     reconnectAttempts = 0;
-    socket.send(JSON.stringify({ type: "subscribe", mmsi: [MMSI], snapshot: true }));
+    socket.send(JSON.stringify({
+      APIKey: AISSTREAM_KEY,
+      BoundingBoxes: [[[-90, -180], [90, 180]]],
+      FiltersShipMMSI: [{ MMSI: MMSI, MessageTypes: ["PositionReport"] }]
+    }));
     setConnection("live", "AIS 实时连接");
   });
   socket.addEventListener("message", (message) => {
     try {
       const event = JSON.parse(message.data);
-      if (event.type === "error") {
-        setConnection("offline", "AIS 订阅异常");
-        return;
-      }
-      const feature = normalizeStreamEvent(event);
-      if (feature) normalizePosition(feature);
+      if (event.MessageType !== "PositionReport") return;
+      const report = event.Message?.PositionReport;
+      const meta = event.MetaData || {};
+      if (!report || Number(meta.MMSI) !== MMSI) return;
+      const lat = Number(report.Latitude);
+      const lon = Number(report.Longitude);
+      if (!Number.isFinite(lat) || !Number.isFinite(lon) || Math.abs(lat) > 90 || Math.abs(lon) > 180) return;
+      const seen = String(meta.time_utc || "").replace(" ", "T").replace(" UTC", "Z");
+      normalizePosition({
+        geometry: { coordinates: [lon, lat] },
+        properties: {
+          mmsi: MMSI,
+          name: meta.ShipName,
+          seen: seen || new Date().toISOString(),
+          cog: report.Cog,
+          sog: report.Sog,
+          heading: report.TrueHeading,
+          nav_status: report.NavigationalStatus
+        }
+      });
     } catch (error) {
       console.warn("Ignored malformed AIS event", error);
     }
