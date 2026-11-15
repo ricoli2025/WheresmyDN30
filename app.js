@@ -53,6 +53,7 @@ const navStates = {
 let map;
 let actualLine;
 let futureLine;
+let estimateLine;
 let shipMarker;
 let shipPosition = null;
 let shipSeen = null;
@@ -108,6 +109,7 @@ function initMap() {
 
   actualLine = L.polyline([], { color: "#76f7d1", weight: 2.2, opacity: 0.95, lineCap: "round", lineJoin: "round", interactive: false }).addTo(map);
   futureLine = L.polyline([], { color: "#8de9d3", weight: 1.7, opacity: 0.8, dashArray: "7 9", lineCap: "round", interactive: false }).addTo(map);
+  estimateLine = L.polyline([], { color: "#e8b34b", weight: 2, opacity: 0.95, dashArray: "1.5 5", lineCap: "round", lineJoin: "round", interactive: false }).addTo(map);
 
   ports.forEach((port, index) => {
     const circle = L.circleMarker(portLatLng(port), {
@@ -196,7 +198,19 @@ function updatePortStates() {
   updateFutureRoute();
 }
 
+function routePathAhead(from) {
+  const b = nearestOnRoute(from);
+  if (!b) return [from, ...fullRoute];
+  const path = [from, b.point];
+  for (let i = b.index + 1; i < fullRoute.length; i += 1) path.push(fullRoute[i]);
+  return path;
+}
+
 function updateFutureRoute() {
+  if (estimatedPosition) {
+    futureLine.setLatLngs(routePathAhead(estimatedPosition));
+    return;
+  }
   const position = displayShipPosition();
   if (!position) {
     futureLine.setLatLngs(fullRoute);
@@ -240,6 +254,28 @@ function bearingOf(a, b) {
   return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
 }
 
+function nearestOnRoute(p) {
+  let best = null;
+  for (let i = 0; i < fullRoute.length - 1; i += 1) {
+    const proj = projectToSegment(p, fullRoute[i], fullRoute[i + 1]);
+    const d = map.distance(p, proj.point);
+    if (!best || d < best.distance) best = { ...proj, index: i, distance: d };
+  }
+  return best;
+}
+
+function routePathBetween(from, to) {
+  const a = nearestOnRoute(from);
+  const b = nearestOnRoute(to);
+  if (!a || !b) return [from, to];
+  const path = [from, a.point];
+  if (a.index !== b.index) {
+    for (let i = a.index + 1; i <= b.index; i += 1) path.push(fullRoute[i]);
+  }
+  path.push(b.point, to);
+  return path;
+}
+
 function computeEstimate() {
   if (!shipPosition || !shipSeen) return null;
   const elapsedHours = (Date.now() - shipSeen.getTime()) / 3600000;
@@ -247,12 +283,7 @@ function computeEstimate() {
   const rawSog = Number(vesselState.sog);
   const sog = (Number.isFinite(rawSog) && rawSog > 2 ? rawSog : 16) * 0.514444;
 
-  let best = null;
-  for (let i = 0; i < fullRoute.length - 1; i += 1) {
-    const proj = projectToSegment(shipPosition, fullRoute[i], fullRoute[i + 1]);
-    const d = map.distance(shipPosition, proj.point);
-    if (!best || d < best.distance) best = { ...proj, index: i, distance: d };
-  }
+  const best = nearestOnRoute(shipPosition);
   if (!best) return null;
 
   let remaining = sog * 3600 * elapsedHours;
@@ -274,6 +305,7 @@ function applyEstimate() {
   const estimate = computeEstimate();
   estimatedPosition = estimate ? estimate.position : null;
   estimatedSeen = estimate ? estimate.baseTime : null;
+  estimateLine.setLatLngs(estimatedPosition && shipPosition ? routePathBetween(shipPosition, estimatedPosition) : []);
   if (!shipMarker) return;
   const element = shipMarker.getElement();
   const caption = element?.querySelector(".ship-caption");
@@ -321,6 +353,7 @@ function normalizePosition(feature, cached = false) {
   shipSeen = new Date(seen);
   estimatedPosition = null;
   estimatedSeen = null;
+  estimateLine.setLatLngs([]);
   const markerEl = shipMarker?.getElement();
   markerEl?.classList.remove("is-estimated");
   const caption = markerEl?.querySelector(".ship-caption");
