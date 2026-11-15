@@ -195,6 +195,10 @@ main { height: calc(100% - 68px); position: relative; }
 .ship-direction { align-items: center; display: flex; height: 22px; justify-content: center; width: 22px; }
 .ship-direction svg { fill: var(--accent); height: 17px; width: 17px; }
 .ship-caption { color: var(--accent); font-family: var(--mono); font-size: 8px; left: 36px; letter-spacing: 0.06em; position: absolute; text-shadow: 0 1px 5px #061014; top: 13px; white-space: nowrap; }
+.ship-marker.is-estimated .ship-core { border: 1px dashed #e8b34b; border-radius: 50%; box-shadow: 0 0 20px rgba(232, 179, 75, 0.35); background: #241c0a; }
+.ship-marker.is-estimated .ship-direction svg { fill: #e8b34b; }
+.ship-marker.is-estimated .ship-caption { color: #e8b34b; }
+.ship-marker.is-estimated .ship-pulse { border-color: #e8b34b; animation: none; opacity: 0.25; }
 
 @keyframes blink { 50% { opacity: 0.35; } }
 @keyframes spin { to { transform: rotate(360deg); } }

@@ -56,6 +56,9 @@ let futureLine;
 let shipMarker;
 let shipPosition = null;
 let shipSeen = null;
+let estimatedPosition = null;
+let estimatedSeen = null;
+const STALE_MINUTES = 180;
 let actualCoordinates = [];
 let actualSegments = [];
 let following = false;
@@ -164,9 +167,10 @@ function updatePortStates() {
   currentPortIndex = scheduleIndex;
   shipAtPort = false;
 
-  if (shipPosition) {
+  const position = displayShipPosition();
+  if (position) {
     const nearest = ports.reduce((best, port, index) => {
-      const distance = map.distance(shipPosition, portLatLng(port));
+      const distance = map.distance(position, portLatLng(port));
       return distance < best.distance ? { index, distance } : best;
     }, { index: scheduleIndex, distance: Infinity });
     if (nearest.distance < 45000) {
@@ -193,7 +197,8 @@ function updatePortStates() {
 }
 
 function updateFutureRoute() {
-  if (!shipPosition) {
+  const position = displayShipPosition();
+  if (!position) {
     futureLine.setLatLngs(fullRoute);
     return;
   }
@@ -203,15 +208,86 @@ function updateFutureRoute() {
     return;
   }
   if (nextIndex === 0) {
-    futureLine.setLatLngs([shipPosition, ...fullRoute]);
+    futureLine.setLatLngs([position, ...fullRoute]);
     return;
   }
-  const route = [shipPosition];
+  const route = [position];
   for (let i = nextIndex - 1; i < ports.length - 1; i += 1) {
     const key = `${ports[i].id}-${ports[i + 1].id}`;
     route.push(...(legWaypoints[key] || []), portLatLng(ports[i + 1]));
   }
   futureLine.setLatLngs(route);
+}
+
+function displayShipPosition() {
+  return estimatedPosition || shipPosition;
+}
+
+function projectToSegment(p, a, b) {
+  const dx = b[0] - a[0];
+  const dy = b[1] - a[1];
+  const len2 = dx * dx + dy * dy;
+  const t = len2 ? Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2)) : 0;
+  return { point: [a[0] + t * dx, a[1] + t * dy], t };
+}
+
+function bearingOf(a, b) {
+  const phi1 = a[0] * Math.PI / 180;
+  const phi2 = b[0] * Math.PI / 180;
+  const dLon = (b[1] - a[1]) * Math.PI / 180;
+  const y = Math.sin(dLon) * Math.cos(phi2);
+  const x = Math.cos(phi1) * Math.sin(phi2) - Math.sin(phi1) * Math.cos(phi2) * Math.cos(dLon);
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+
+function computeEstimate() {
+  if (!shipPosition || !shipSeen) return null;
+  const elapsedHours = (Date.now() - shipSeen.getTime()) / 3600000;
+  if (elapsedHours * 60 < STALE_MINUTES) return null;
+  const rawSog = Number(vesselState.sog);
+  const sog = (Number.isFinite(rawSog) && rawSog > 2 ? rawSog : 16) * 0.514444;
+
+  let best = null;
+  for (let i = 0; i < fullRoute.length - 1; i += 1) {
+    const proj = projectToSegment(shipPosition, fullRoute[i], fullRoute[i + 1]);
+    const d = map.distance(shipPosition, proj.point);
+    if (!best || d < best.distance) best = { ...proj, index: i, distance: d };
+  }
+  if (!best) return null;
+
+  let remaining = sog * 3600 * elapsedHours;
+  let prev = best.point;
+  for (let i = best.index; i < fullRoute.length - 1; i += 1) {
+    const segLen = map.distance(prev, fullRoute[i + 1]);
+    if (segLen >= remaining && segLen > 0) {
+      const f = remaining / segLen;
+      const pos = [prev[0] + f * (fullRoute[i + 1][0] - prev[0]), prev[1] + f * (fullRoute[i + 1][1] - prev[1])];
+      return { position: pos, heading: bearingOf(prev, fullRoute[i + 1]), baseTime: shipSeen };
+    }
+    remaining -= segLen;
+    prev = fullRoute[i + 1];
+  }
+  return { position: fullRoute[fullRoute.length - 1], heading: 0, baseTime: shipSeen, arrived: true };
+}
+
+function applyEstimate() {
+  const estimate = computeEstimate();
+  estimatedPosition = estimate ? estimate.position : null;
+  estimatedSeen = estimate ? estimate.baseTime : null;
+  if (!shipMarker) return;
+  const element = shipMarker.getElement();
+  const caption = element?.querySelector(".ship-caption");
+  if (estimate) {
+    shipMarker.setLatLng(estimate.position);
+    setShipHeading(estimate.heading);
+    element?.classList.add("is-estimated");
+    if (caption) caption.textContent = "OOCL HK · 估算位置";
+  } else {
+    if (shipPosition) shipMarker.setLatLng(shipPosition);
+    element?.classList.remove("is-estimated");
+    if (caption) caption.textContent = "OOCL HK · 040E";
+  }
+  updateFutureRoute();
 }
 
 function createShipMarker(position, heading = 0) {
@@ -243,6 +319,12 @@ function normalizePosition(feature, cached = false) {
 
   shipPosition = [lat, lon];
   shipSeen = new Date(seen);
+  estimatedPosition = null;
+  estimatedSeen = null;
+  const markerEl = shipMarker?.getElement();
+  markerEl?.classList.remove("is-estimated");
+  const caption = markerEl?.querySelector(".ship-caption");
+  if (caption) caption.textContent = "OOCL HK · 040E";
   const heading = Number.isFinite(props.heading) ? props.heading : Number(props.cog) || 0;
   if (!shipMarker) createShipMarker(shipPosition, heading);
   else {
@@ -291,11 +373,25 @@ function formatCoordinate(value, positive, negative) {
 }
 
 function updateFreshness() {
+  applyEstimate();
   if (!shipSeen || Number.isNaN(shipSeen.getTime())) return;
   const minutes = Math.max(0, Math.floor((Date.now() - shipSeen.getTime()) / 60000));
   const relative = minutes < 1 ? "刚刚更新" : minutes < 60 ? `${minutes} 分钟前更新` : `${Math.floor(minutes / 60)} 小时前更新`;
   const exact = new Intl.DateTimeFormat("zh-CN", { timeZone: "Asia/Shanghai", hour: "2-digit", minute: "2-digit", hour12: false }).format(shipSeen);
   document.getElementById("position-updated").textContent = `${relative} · 北京时间 ${exact}`;
+  if (estimatedPosition) {
+    const staleHours = Math.floor(minutes / 60);
+    document.getElementById("position-name").textContent = "估算位置 · 航速推算（非 AIS 实测）";
+    document.getElementById("nav-state").textContent = `推算船位 · 基于 ${staleHours} 小时前的信号`;
+    const [lat, lon] = estimatedPosition;
+    document.getElementById("coordinates").innerHTML = `${formatCoordinate(lat, "N", "S")}&nbsp;&nbsp;${formatCoordinate(lon, "E", "W")}`;
+  } else {
+    document.getElementById("nav-state").textContent = "AIS 已更新";
+    if (shipPosition) {
+      const [lat, lon] = shipPosition;
+      document.getElementById("coordinates").innerHTML = `${formatCoordinate(lat, "N", "S")}&nbsp;&nbsp;${formatCoordinate(lon, "E", "W")}`;
+    }
+  }
 }
 
 function fitFullRoute() {
@@ -311,11 +407,12 @@ function focusPort(index) {
 }
 
 function focusShip() {
-  if (!shipPosition) {
+  const position = displayShipPosition();
+  if (!position) {
     showToast("暂未获得 AIS 船位，请稍后重试");
     return;
   }
-  map.setView(shipPosition, 6, { animate: false });
+  map.setView(position, 6, { animate: false });
 }
 
 function updateFollowButton() {
@@ -494,6 +591,8 @@ async function init() {
   updateEta();
   normalizePosition(lastKnown, true);
   await Promise.allSettled([fetchLatestPosition(), fetchTrack()]);
+  applyEstimate();
+  updateFreshness();
   document.getElementById("map-loading").classList.add("is-hidden");
   setTimeout(() => document.getElementById("map-loading").remove(), 400);
   connectStream();
