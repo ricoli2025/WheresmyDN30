@@ -109,8 +109,8 @@ function initMap() {
   }).addTo(map);
 
   actualLine = L.polyline([], { color: "#76f7d1", weight: 2.2, opacity: 0.95, lineCap: "round", lineJoin: "round", interactive: false }).addTo(map);
-  futureLine = L.polyline([], { color: "#e8a56a", weight: 1.7, opacity: 0.9, dashArray: "7 9", lineCap: "round", lineJoin: "round", interactive: false }).addTo(map);
-  estimateLine = L.polyline([], { color: "#e8b34b", weight: 2, opacity: 0.95, dashArray: "1.5 5", lineCap: "round", lineJoin: "round", interactive: false }).addTo(map);
+  futureLine = L.polyline([], { color: "#8de9d3", weight: 1.7, opacity: 0.8, dashArray: "7 9", lineCap: "round", interactive: false }).addTo(map);
+  estimateLine = L.polyline([], { color: "#76f7d1", weight: 2.2, opacity: 0.95, lineCap: "round", lineJoin: "round", interactive: false }).addTo(map);
 
   ports.forEach((port, index) => {
     const circle = L.circleMarker(portLatLng(port), {

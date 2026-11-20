@@ -150,8 +150,8 @@ main { height: calc(100% - 68px); position: relative; }
 .route-legend { display: flex; gap: 19px; }
 .route-legend > span { align-items: center; color: var(--muted); display: flex; font-size: 8px; gap: 7px; }
 .legend-line { border-top: 1px solid var(--accent); display: inline-block; width: 22px; }
-.legend-line.is-dashed { border-top-color: #e8a56a; border-top-style: dashed; opacity: 0.9; }
-.legend-line.is-estimated { border-top: 2px dashed #e8b34b; width: 22px; }
+.legend-line.is-dashed { border-top-style: dashed; opacity: 0.7; }
+.legend-line.is-estimated { border-top: 2px solid var(--accent); width: 22px; }
 .timeline-scroll { overflow-x: auto; scrollbar-color: rgba(118, 247, 209, 0.25) transparent; scrollbar-width: thin; }
 .timeline { display: grid; grid-template-columns: repeat(12, minmax(78px, 1fr)); min-width: 1020px; padding: 14px 0 9px; position: relative; }
 .timeline::before { background: var(--line); content: ""; height: 1px; left: 3.7%; position: absolute; right: 3.7%; top: 20px; }
