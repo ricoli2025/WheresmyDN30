@@ -2,21 +2,21 @@ const MMSI = 477333500;
 const AIS_API = "https://ais.openwaters.io/v1";
 const AISSTREAM_KEY = "904c95126f47e3a5f40bf78113e21dd0a2496656";
 const VOYAGE_START = "2026-10-16T00:00:00Z";
-const SHANGHAI_ETA = new Date("2026-12-02T00:00:00Z");
+const SHANGHAI_ETA = new Date("2026-12-05T00:00:00Z");
 
 const ports = [
   { id: "piraeus", name: "比雷埃夫斯", en: "Piraeus", code: "GRPIR", lat: 37.942, lon: 23.635, eta: "10/16", etd: "10/19", etaISO: "2026-10-16", etdISO: "2026-10-19", offset: [10, 10], anchor: "left" },
   { id: "fos", name: "福斯", en: "Fos-sur-Mer", code: "FRFOS", lat: 43.395, lon: 4.884, eta: "10/23", etd: "10/25", etaISO: "2026-10-23", etdISO: "2026-10-25", offset: [-12, -25], anchor: "right" },
   { id: "genoa", name: "热那亚", en: "Genoa", code: "ITGOA", lat: 44.405, lon: 8.925, eta: "10/28", etd: "11/01", etaISO: "2026-10-28", etdISO: "2026-11-01", offset: [12, -25], anchor: "left" },
-  { id: "valencia", name: "瓦伦西亚", en: "Valencia", code: "ESVLC", lat: 39.4317, lon: -0.3183, eta: "11/01", etd: "11/04", etaISO: "2026-11-01", etdISO: "2026-11-04", offset: [14, 18], anchor: "left" },
-  { id: "suez", name: "苏伊士运河", en: "Suez Canal", code: "EGSUZ", lat: 30.45, lon: 32.35, eta: "11/07", etd: "11/08", etaISO: "2026-11-07", etdISO: "2026-11-08", offset: [12, -12], anchor: "left" },
-  { id: "singapore", name: "新加坡", en: "Singapore", code: "SGSIN", lat: 1.264, lon: 103.84, eta: "11/22", etd: "11/23", etaISO: "2026-11-22", etdISO: "2026-11-23", offset: [12, 12], anchor: "left" },
-  { id: "qingdao", name: "青岛", en: "Qingdao", code: "CNQDG", lat: 36.067, lon: 120.25, eta: "11/30", etd: "12/01", etaISO: "2026-11-30", etdISO: "2026-12-01", offset: [-10, -25], anchor: "right" },
-  { id: "shanghai", name: "上海", en: "Shanghai", code: "CNSHA", lat: 31.23, lon: 121.5, eta: "12/02", etd: "12/04", etaISO: "2026-12-02", etdISO: "2026-12-04", offset: [14, -12], anchor: "left" },
-  { id: "ningbo", name: "宁波", en: "Ningbo", code: "CNNGB", lat: 29.87, lon: 121.85, eta: "12/04", etd: "12/05", etaISO: "2026-12-04", etdISO: "2026-12-05", offset: [14, 8], anchor: "left" },
-  { id: "kaohsiung", name: "高雄", en: "Kaohsiung", code: "TWKHH", lat: 22.61, lon: 120.29, eta: "12/07", etd: "12/08", etaISO: "2026-12-07", etdISO: "2026-12-08", offset: [-14, -20], anchor: "right" },
-  { id: "hongkong", name: "香港", en: "Hong Kong", code: "HKHKG", lat: 22.29, lon: 114.15, eta: "12/09", etd: "12/10", etaISO: "2026-12-09", etdISO: "2026-12-10", offset: [-14, 22], anchor: "right" },
-  { id: "yantian", name: "盐田", en: "Yantian", code: "CNYTN", lat: 22.58, lon: 114.28, eta: "12/10", etd: "12/11", etaISO: "2026-12-10", etdISO: "2026-12-11", offset: [14, -24], anchor: "left" }
+  { id: "valencia", name: "瓦伦西亚", en: "Valencia", code: "ESVLC", lat: 39.4317, lon: -0.3183, eta: "11/04", etd: "11/07", etaISO: "2026-11-04", etdISO: "2026-11-07", offset: [14, 18], anchor: "left" },
+  { id: "suez", name: "苏伊士运河", en: "Suez Canal", code: "EGSUZ", lat: 30.45, lon: 32.35, eta: "11/12", etd: "11/12", etaISO: "2026-11-12", etdISO: "2026-11-12", offset: [12, -12], anchor: "left" },
+  { id: "singapore", name: "新加坡", en: "Singapore", code: "SGSIN", lat: 1.264, lon: 103.84, eta: "11/26", etd: "11/27", etaISO: "2026-11-26", etdISO: "2026-11-27", offset: [12, 12], anchor: "left" },
+  { id: "qingdao", name: "青岛", en: "Qingdao", code: "CNQDG", lat: 36.067, lon: 120.25, eta: "12/03", etd: "12/04", etaISO: "2026-12-03", etdISO: "2026-12-04", offset: [-10, -25], anchor: "right" },
+  { id: "shanghai", name: "上海", en: "Shanghai", code: "CNSHA", lat: 31.23, lon: 121.5, eta: "12/05", etd: "12/07", etaISO: "2026-12-05", etdISO: "2026-12-07", offset: [14, -12], anchor: "left" },
+  { id: "ningbo", name: "宁波", en: "Ningbo", code: "CNNGB", lat: 29.87, lon: 121.85, eta: "12/07", etd: "12/08", etaISO: "2026-12-07", etdISO: "2026-12-08", offset: [14, 8], anchor: "left" },
+  { id: "kaohsiung", name: "高雄", en: "Kaohsiung", code: "TWKHH", lat: 22.61, lon: 120.29, eta: "12/10", etd: "12/11", etaISO: "2026-12-10", etdISO: "2026-12-11", offset: [-14, -20], anchor: "right" },
+  { id: "hongkong", name: "香港", en: "Hong Kong", code: "HKHKG", lat: 22.29, lon: 114.15, eta: "12/12", etd: "12/13", etaISO: "2026-12-12", etdISO: "2026-12-13", offset: [-14, 22], anchor: "right" },
+  { id: "yantian", name: "盐田", en: "Yantian", code: "CNYTN", lat: 22.58, lon: 114.28, eta: "12/13", etd: "12/14", etaISO: "2026-12-13", etdISO: "2026-12-14", offset: [14, -24], anchor: "left" }
 ];
 
 const legWaypoints = {
