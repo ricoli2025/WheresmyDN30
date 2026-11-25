@@ -60,6 +60,7 @@ let shipPosition = null;
 let shipSeen = null;
 let estimatedPosition = null;
 let estimatedSeen = null;
+let estimatedPort = null;
 const STALE_MINUTES = 180;
 let actualCoordinates = [];
 let actualSegments = [];
@@ -286,10 +287,20 @@ function computeEstimate() {
 
   const best = nearestOnRoute(shipPosition);
   if (!best) return null;
+  const pendingPort = ports.find((port) => Date.now() <= new Date(`${port.etaISO}T23:59:59Z`).getTime()) || null;
+  const pendingPortIndex = pendingPort ? fullRoute.findIndex((point) => point[0] === pendingPort.lat && point[1] === pendingPort.lon) : -1;
+  const pendingResult = () => ({
+    position: portLatLng(pendingPort),
+    heading: bearingOf(fullRoute[pendingPortIndex - 1], fullRoute[pendingPortIndex]),
+    baseTime: shipSeen,
+    pendingPort
+  });
+  if (pendingPort && (pendingPortIndex < 0 || best.index >= pendingPortIndex)) return pendingResult();
 
   let remaining = sog * 3600 * elapsedHours;
   let prev = best.point;
   for (let i = best.index; i < fullRoute.length - 1; i += 1) {
+    if (pendingPort && i >= pendingPortIndex) return pendingResult();
     const segLen = map.distance(prev, fullRoute[i + 1]);
     if (segLen >= remaining && segLen > 0) {
       const f = remaining / segLen;
@@ -299,13 +310,14 @@ function computeEstimate() {
     remaining -= segLen;
     prev = fullRoute[i + 1];
   }
-  return { position: fullRoute[fullRoute.length - 1], heading: 0, baseTime: shipSeen, arrived: true };
+  return pendingPort ? pendingResult() : { position: fullRoute[fullRoute.length - 1], heading: 0, baseTime: shipSeen, arrived: true };
 }
 
 function applyEstimate() {
   const estimate = computeEstimate();
   estimatedPosition = estimate ? estimate.position : null;
   estimatedSeen = estimate ? estimate.baseTime : null;
+  estimatedPort = estimate?.pendingPort || null;
   estimateLine.setLatLngs(estimatedPosition && shipPosition ? routePathBetween(shipPosition, estimatedPosition) : []);
   if (!shipMarker) return;
   const element = shipMarker.getElement();
@@ -354,6 +366,7 @@ function normalizePosition(feature, cached = false) {
   shipSeen = new Date(seen);
   estimatedPosition = null;
   estimatedSeen = null;
+  estimatedPort = null;
   estimateLine.setLatLngs([]);
   const markerEl = shipMarker?.getElement();
   markerEl?.classList.remove("is-estimated");
@@ -415,7 +428,7 @@ function updateFreshness() {
   document.getElementById("position-updated").textContent = `${relative} · 北京时间 ${exact}`;
   if (estimatedPosition) {
     const staleHours = Math.floor(minutes / 60);
-    document.getElementById("position-name").textContent = "估算位置 · 航速推算（非 AIS 实测）";
+    document.getElementById("position-name").textContent = estimatedPort ? `${estimatedPort.name}外海 · 未确认到港` : "估算位置 · 航速推算（非 AIS 实测）";
     document.getElementById("nav-state").textContent = `推算船位 · 基于 ${staleHours} 小时前的信号`;
     const [lat, lon] = estimatedPosition;
     document.getElementById("coordinates").innerHTML = `${formatCoordinate(lat, "N", "S")}&nbsp;&nbsp;${formatCoordinate(lon, "E", "W")}`;
